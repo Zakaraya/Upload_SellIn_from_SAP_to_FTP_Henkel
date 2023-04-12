@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import filedialog
 import pandas as pd
 import openpyxl
+from openpyxl.styles import numbers
 
 
 # Функция прикрепления файла SellIn из SAP
@@ -23,6 +24,7 @@ def process_files():
     # чтение файла из SAP
     ke24_SAP_df = pd.read_excel(file1_path, 'Sheet1', index_col=False)
     ke24_SAP_df.dropna(subset=['Product'], inplace=True)
+    ke24_SAP_df['Product'] = ke24_SAP_df['Product'].astype('int')
     ke24_SAP_df['Product'] = ke24_SAP_df['Product'].astype(str)
 
     columns = [
@@ -46,17 +48,18 @@ def process_files():
         'Company Code': 'Henkel Rus LLC',
         'Ship To Customer Number Global': ke24_SAP_df['Ship-To Party'],
         'Ship To Customer Global': ke24_SAP_df['Ship-To Party Text'],
-        'Material Number': ke24_SAP_df['Product'],
+        'Material Number': ke24_SAP_df['Product'].astype('int'),
         'Material': ke24_SAP_df['Product Text'],
         'Qty in CON': ke24_SAP_df['Quantity in CON'],
-        'CPV': ke24_SAP_df['CPV'].astype('int'),
-        'NES': ke24_SAP_df['NES'].astype('int'),
+        'CPV': round(ke24_SAP_df['CPV'].astype('float'), 2),
+        'NES': round(ke24_SAP_df['NES'].astype('float'), 2),
     })
     # удаление пустых строк
     new_salesbi_file = new_salesbi_file.dropna(thresh=6)
     # удаляем продукт, который не относится к нашим продажам - Freight & Warehousing external Costs
     new_salesbi_file = new_salesbi_file[
-        (new_salesbi_file['CPV'] != 0) & (new_salesbi_file['Material Number'] != '851810')]
+        (new_salesbi_file['CPV'] != 0) & (new_salesbi_file['Material Number'] != '851810') & (
+                    new_salesbi_file['Material'] != 'Freight & Warehousing external Costs')]
     # Оставляем только Россию и Беларусь. В выгрузке могут быть Казахстан, Армения, Азербайджан, Таджикистан
     new_salesbi_file = new_salesbi_file[
         new_salesbi_file['Ship To Country Customer'].isin(['Russian Feder.', 'Belarus'])]
@@ -66,8 +69,14 @@ def process_files():
     writer = pd.ExcelWriter(file2_path, engine='openpyxl')
     writer.book = book
     writer.sheets.update(dict((ws.title, ws) for ws in book.worksheets))
+
+    sheet = writer.sheets[str(book.sheetnames[0])]
+
     new_salesbi_file.to_excel(writer, 'Grid', startrow=3, startcol=1, index=False, header=0)
-    writer.save()
+    # writer.save()
+    # for cell in sheet[f'F4:F5']:
+    #     # print(cell)
+    #     cell[0]= str(cell[0].value)
     writer.close()
 
     result_label.config(text="Files processed successfully!")
